@@ -11,11 +11,12 @@ class MultiFloorEditor:
         self.combined_graph = nx.Graph()
         self.stair_connections = []
         
+        # Drawing state
         self.drawing = False
         self.current_path = []
         self.nodes = {}
         self.stair_selection = None
-        
+            
         # Full image
         self.full_image = None
         self.display_image = None

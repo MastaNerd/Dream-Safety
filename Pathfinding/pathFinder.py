@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import networkx as nx
 import json
+import pyttsx3
 
 def load_combined_graph(gexf_file, original_image_path):
     """Load the combined graph with multi-floor data"""
@@ -156,6 +157,8 @@ def find_and_draw_shortest_path(G, pos, floor_info, img, node1, node2):
             node = path_nodes[i]
             new_floor = floor_info.get(node, "Unknown")
             if new_floor != current_floor:
+                engine.say("  Take stairs: {path_nodes[i-1]} ({current_floor}) → {node} ({new_floor})")
+                engine.runAndWait()
                 print(f"  Take stairs: {path_nodes[i-1]} ({current_floor}) → {node} ({new_floor})")
                 current_floor = new_floor
             print(f"  Move to: {node} on {current_floor}")
@@ -179,6 +182,8 @@ def main():
     gexf_file = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan_combined.gexf"
     original_image_path = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan.JPG"
     
+    engine = pyttsx3.init()
+
     try:
         G, pos, floor_info, img = load_combined_graph(gexf_file, original_image_path)
     except Exception as e:
