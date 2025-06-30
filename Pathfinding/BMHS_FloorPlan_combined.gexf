@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <gexf xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
-  <meta lastmodifieddate="2025-06-24">
+  <meta lastmodifieddate="2025-06-12">
     <creator>NetworkX 3.5</creator>
   </meta>
   <graph defaultedgetype="undirected" mode="static" name="">
@@ -14,6 +14,20 @@
       <attribute id="2" title="floor" type="string" />
     </attributes>
     <nodes>
+      <node id="Floor1_Node_1" label="Floor1_Node_1">
+        <attvalues>
+          <attvalue for="0" value="192.0" />
+          <attvalue for="1" value="62.0" />
+          <attvalue for="2" value="Floor1" />
+        </attvalues>
+      </node>
+      <node id="Floor1_Node_2" label="Floor1_Node_2">
+        <attvalues>
+          <attvalue for="0" value="62.0" />
+          <attvalue for="1" value="98.0" />
+          <attvalue for="2" value="Floor1" />
+        </attvalues>
+      </node>
       <node id="Floor1_Node_3" label="Floor1_Node_3">
         <attvalues>
           <attvalue for="0" value="81.0" />
@@ -123,20 +137,6 @@
         <attvalues>
           <attvalue for="0" value="360.0" />
           <attvalue for="1" value="259.0" />
-          <attvalue for="2" value="Floor1" />
-        </attvalues>
-      </node>
-      <node id="Bottom Floor Top Staircase" label="Bottom Floor Top Staircase">
-        <attvalues>
-          <attvalue for="0" value="192.0" />
-          <attvalue for="1" value="62.0" />
-          <attvalue for="2" value="Floor1" />
-        </attvalues>
-      </node>
-      <node id="West Staircase" label="West Staircase">
-        <attvalues>
-          <attvalue for="0" value="62.0" />
-          <attvalue for="1" value="98.0" />
           <attvalue for="2" value="Floor1" />
         </attvalues>
       </node>
@@ -324,8 +324,8 @@
       </node>
       <node id="Floor2_Node_27" label="Floor2_Node_27">
         <attvalues>
-          <attvalue for="0" value="682.0" />
-          <attvalue for="1" value="311.0" />
+          <attvalue for="0" value="682" />
+          <attvalue for="1" value="311" />
           <attvalue for="2" value="Floor2" />
         </attvalues>
       </node>
@@ -457,124 +457,124 @@
       </node>
     </nodes>
     <edges>
-      <edge source="Floor1_Node_3" target="Floor1_Node_5" id="0" weight="19.2">
-        <attvalues>
-          <attvalue for="3" value="[[86, 118], [86, 118], [90, 119], [97, 120], [99, 120], [100, 120], [100, 120], [101, 120], [101, 120], [102, 120], [103, 120], [104, 120], [105, 120], [105, 120]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_3" target="West Staircase" id="1" weight="18.3">
-        <attvalues>
-          <attvalue for="3" value="[[65, 104], [65, 104], [67, 109], [70, 112], [72, 113], [74, 113], [75, 114], [76, 114], [76, 115], [77, 115], [77, 115]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_5" target="Floor1_Node_14" id="2" weight="43.7">
-        <attvalues>
-          <attvalue for="3" value="[[115, 120], [120, 121], [125, 122], [129, 122], [130, 122], [131, 122], [131, 122], [131, 122], [131, 122], [132, 122], [132, 122], [132, 122], [132, 122], [133, 122], [133, 122], [133, 122], [133, 122], [134, 122], [134, 122], [134, 122], [134, 123], [135, 123], [135, 123], [135, 123], [136, 123], [136, 123], [136, 123], [137, 123], [137, 124], [138, 124], [138, 124], [138, 124], [139, 124], [139, 124], [139, 124], [140, 124], [140, 124], [141, 125], [141, 125], [141, 125], [142, 125], [142, 125], [143, 125], [143, 126], [144, 126], [144, 126], [145, 126], [145, 126], [145, 126], [146, 127], [146, 127], [146, 127], [146, 127], [147, 127], [147, 127], [147, 127], [148, 128], [148, 128], [148, 128], [149, 128], [149, 128], [149, 128], [150, 128], [150, 129], [152, 130], [153, 130], [153, 130]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_6" target="Floor1_Node_14" id="3" weight="45.2">
-        <attvalues>
-          <attvalue for="3" value="[[157, 139], [157, 144], [157, 149], [159, 163], [160, 175], [160, 181], [160, 183], [160, 182]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_6" target="Floor1_Node_13" id="4" weight="47.3">
-        <attvalues>
-          <attvalue for="3" value="[[160, 188], [160, 188], [160, 201], [160, 208], [160, 221], [159, 226], [159, 227], [158, 229], [158, 230], [158, 230], [158, 230], [157, 230], [157, 230], [157, 230], [157, 231], [157, 231], [157, 231], [157, 231], [157, 232], [157, 232], [157, 230]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_7" target="Floor1_Node_8" id="5" weight="22.7">
-        <attvalues>
-          <attvalue for="3" value="[[66, 203], [72, 208], [75, 210], [84, 215], [85, 215]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_7" target="Floor2_Node_5" id="6" weight="10">
-        <attvalues>
-          <attvalue for="3" value="[]" />
-          <attvalue for="4" value="true" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_8" target="Floor1_Node_9" id="7" weight="18.5">
-        <attvalues>
-          <attvalue for="3" value="[[88, 217], [96, 218], [102, 220], [106, 221]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_9" target="Floor1_Node_13" id="8" weight="40.2">
-        <attvalues>
-          <attvalue for="3" value="[[113, 222], [113, 222], [122, 224], [132, 225], [143, 229], [148, 231], [149, 232], [149, 232], [149, 232], [149, 232], [150, 233], [150, 234], [150, 234], [150, 234]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_10" target="Floor1_Node_11" id="9" weight="33.9">
-        <attvalues>
-          <attvalue for="3" value="[[66, 301], [70, 306], [82, 311], [92, 312], [94, 313], [96, 312]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_10" target="Floor2_Node_6" id="10" weight="10">
-        <attvalues>
-          <attvalue for="3" value="[]" />
-          <attvalue for="4" value="true" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_11" target="Floor1_Node_12" id="11" weight="32.5">
-        <attvalues>
-          <attvalue for="3" value="[[102, 316], [113, 317], [121, 318], [132, 320], [134, 321]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_12" target="Floor1_Node_16" id="12" weight="66.0">
-        <attvalues>
-          <attvalue for="3" value="[[140, 323], [145, 324], [151, 326], [165, 327], [179, 330], [186, 330], [192, 330], [198, 331], [202, 332], [205, 332], [205, 332]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_13" target="Floor1_Node_15" id="13" weight="116.9">
-        <attvalues>
-          <attvalue for="3" value="[[156, 236], [157, 246], [160, 259], [167, 279], [182, 294], [192, 298], [193, 297], [194, 297], [194, 297], [194, 297], [194, 297], [194, 297], [195, 296], [195, 296], [195, 296], [195, 296], [196, 295], [196, 295], [196, 295], [196, 295], [196, 294], [197, 294], [197, 294], [197, 294], [197, 294], [197, 293], [197, 293], [197, 293], [198, 293], [198, 292], [198, 292], [198, 292], [198, 292], [199, 291], [199, 291], [199, 291], [199, 291], [199, 291], [199, 290], [200, 290], [200, 290], [200, 290], [200, 290], [200, 290], [200, 289], [201, 289], [201, 289], [201, 289], [201, 288], [201, 288], [201, 288], [202, 288], [202, 288], [202, 287], [202, 287], [202, 287], [203, 287], [203, 286], [203, 286], [203, 286], [203, 286], [204, 285], [204, 285], [204, 285], [204, 284], [204, 284], [205, 284], [205, 283], [205, 283], [205, 283], [206, 282], [206, 282], [206, 282], [207, 281], [207, 281], [207, 281], [207, 281], [208, 280], [208, 280], [208, 279], [209, 279], [209, 279], [209, 278], [210, 278], [210, 278], [210, 277], [210, 277], [211, 277], [211, 277], [211, 276], [211, 276], [212, 276], [212, 276], [212, 275], [212, 275], [212, 275], [212, 275], [213, 275], [213, 275], [213, 275], [213, 274]]" />
-          <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Floor1_Node_14" target="Bottom Floor Top Staircase" id="14" weight="87.8">
+      <edge source="Floor1_Node_1" target="Floor1_Node_14" id="0" weight="87.8">
         <attvalues>
           <attvalue for="3" value="[[156, 130], [157, 123], [159, 119], [163, 114], [165, 111], [166, 111], [166, 111], [166, 110], [167, 110], [167, 110], [167, 110], [167, 110], [167, 110], [168, 110], [168, 109], [168, 109], [168, 109], [168, 109], [168, 109], [168, 109], [169, 109], [169, 108], [169, 108], [169, 108], [169, 108], [170, 107], [170, 107], [170, 107], [170, 107], [170, 107], [171, 106], [171, 106], [171, 106], [171, 106], [172, 105], [172, 105], [172, 105], [173, 104], [173, 103], [173, 103], [174, 101], [175, 99], [175, 98], [175, 97], [175, 98], [175, 100], [175, 100], [175, 101], [178, 90], [182, 81], [184, 72], [184, 71], [184, 71], [184, 70], [185, 68], [186, 65], [188, 63], [189, 62]]" />
           <attvalue for="4" value="false" />
         </attvalues>
       </edge>
-      <edge source="Floor1_Node_15" target="Floor1_Node_16" id="15" weight="54.5">
+      <edge source="Floor1_Node_1" target="Floor2_Node_1" id="1" weight="10">
+        <attvalues>
+          <attvalue for="3" value="[]" />
+          <attvalue for="4" value="true" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_2" target="Floor1_Node_3" id="2" weight="18.3">
+        <attvalues>
+          <attvalue for="3" value="[[65, 104], [65, 104], [67, 109], [70, 112], [72, 113], [74, 113], [75, 114], [76, 114], [76, 115], [77, 115], [77, 115]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_2" target="Floor2_Node_4" id="3" weight="10">
+        <attvalues>
+          <attvalue for="3" value="[]" />
+          <attvalue for="4" value="true" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_3" target="Floor1_Node_5" id="4" weight="19.2">
+        <attvalues>
+          <attvalue for="3" value="[[86, 118], [86, 118], [90, 119], [97, 120], [99, 120], [100, 120], [100, 120], [101, 120], [101, 120], [102, 120], [103, 120], [104, 120], [105, 120], [105, 120]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_5" target="Floor1_Node_14" id="5" weight="43.7">
+        <attvalues>
+          <attvalue for="3" value="[[115, 120], [120, 121], [125, 122], [129, 122], [130, 122], [131, 122], [131, 122], [131, 122], [131, 122], [132, 122], [132, 122], [132, 122], [132, 122], [133, 122], [133, 122], [133, 122], [133, 122], [134, 122], [134, 122], [134, 122], [134, 123], [135, 123], [135, 123], [135, 123], [136, 123], [136, 123], [136, 123], [137, 123], [137, 124], [138, 124], [138, 124], [138, 124], [139, 124], [139, 124], [139, 124], [140, 124], [140, 124], [141, 125], [141, 125], [141, 125], [142, 125], [142, 125], [143, 125], [143, 126], [144, 126], [144, 126], [145, 126], [145, 126], [145, 126], [146, 127], [146, 127], [146, 127], [146, 127], [147, 127], [147, 127], [147, 127], [148, 128], [148, 128], [148, 128], [149, 128], [149, 128], [149, 128], [150, 128], [150, 129], [152, 130], [153, 130], [153, 130]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_6" target="Floor1_Node_14" id="6" weight="45.2">
+        <attvalues>
+          <attvalue for="3" value="[[157, 139], [157, 144], [157, 149], [159, 163], [160, 175], [160, 181], [160, 183], [160, 182]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_6" target="Floor1_Node_13" id="7" weight="47.3">
+        <attvalues>
+          <attvalue for="3" value="[[160, 188], [160, 188], [160, 201], [160, 208], [160, 221], [159, 226], [159, 227], [158, 229], [158, 230], [158, 230], [158, 230], [157, 230], [157, 230], [157, 230], [157, 231], [157, 231], [157, 231], [157, 231], [157, 232], [157, 232], [157, 230]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_7" target="Floor1_Node_8" id="8" weight="22.7">
+        <attvalues>
+          <attvalue for="3" value="[[66, 203], [72, 208], [75, 210], [84, 215], [85, 215]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_7" target="Floor2_Node_5" id="9" weight="10">
+        <attvalues>
+          <attvalue for="3" value="[]" />
+          <attvalue for="4" value="true" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_8" target="Floor1_Node_9" id="10" weight="18.5">
+        <attvalues>
+          <attvalue for="3" value="[[88, 217], [96, 218], [102, 220], [106, 221]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_9" target="Floor1_Node_13" id="11" weight="40.2">
+        <attvalues>
+          <attvalue for="3" value="[[113, 222], [113, 222], [122, 224], [132, 225], [143, 229], [148, 231], [149, 232], [149, 232], [149, 232], [149, 232], [150, 233], [150, 234], [150, 234], [150, 234]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_10" target="Floor1_Node_11" id="12" weight="33.9">
+        <attvalues>
+          <attvalue for="3" value="[[66, 301], [70, 306], [82, 311], [92, 312], [94, 313], [96, 312]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_10" target="Floor2_Node_6" id="13" weight="10">
+        <attvalues>
+          <attvalue for="3" value="[]" />
+          <attvalue for="4" value="true" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_11" target="Floor1_Node_12" id="14" weight="32.5">
+        <attvalues>
+          <attvalue for="3" value="[[102, 316], [113, 317], [121, 318], [132, 320], [134, 321]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_12" target="Floor1_Node_16" id="15" weight="66.0">
+        <attvalues>
+          <attvalue for="3" value="[[140, 323], [145, 324], [151, 326], [165, 327], [179, 330], [186, 330], [192, 330], [198, 331], [202, 332], [205, 332], [205, 332]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_13" target="Floor1_Node_15" id="16" weight="116.9">
+        <attvalues>
+          <attvalue for="3" value="[[156, 236], [157, 246], [160, 259], [167, 279], [182, 294], [192, 298], [193, 297], [194, 297], [194, 297], [194, 297], [194, 297], [194, 297], [195, 296], [195, 296], [195, 296], [195, 296], [196, 295], [196, 295], [196, 295], [196, 295], [196, 294], [197, 294], [197, 294], [197, 294], [197, 294], [197, 293], [197, 293], [197, 293], [198, 293], [198, 292], [198, 292], [198, 292], [198, 292], [199, 291], [199, 291], [199, 291], [199, 291], [199, 291], [199, 290], [200, 290], [200, 290], [200, 290], [200, 290], [200, 290], [200, 289], [201, 289], [201, 289], [201, 289], [201, 288], [201, 288], [201, 288], [202, 288], [202, 288], [202, 287], [202, 287], [202, 287], [203, 287], [203, 286], [203, 286], [203, 286], [203, 286], [204, 285], [204, 285], [204, 285], [204, 284], [204, 284], [205, 284], [205, 283], [205, 283], [205, 283], [206, 282], [206, 282], [206, 282], [207, 281], [207, 281], [207, 281], [207, 281], [208, 280], [208, 280], [208, 279], [209, 279], [209, 279], [209, 278], [210, 278], [210, 278], [210, 277], [210, 277], [211, 277], [211, 277], [211, 276], [211, 276], [212, 276], [212, 276], [212, 275], [212, 275], [212, 275], [212, 275], [213, 275], [213, 275], [213, 275], [213, 274]]" />
+          <attvalue for="4" value="false" />
+        </attvalues>
+      </edge>
+      <edge source="Floor1_Node_15" target="Floor1_Node_16" id="17" weight="54.5">
         <attvalues>
           <attvalue for="3" value="[[214, 275], [214, 277], [214, 283], [214, 284], [214, 284], [214, 284], [214, 285], [214, 285], [214, 286], [214, 286], [214, 287], [214, 287], [214, 288], [213, 288], [213, 289], [213, 290], [213, 291], [213, 291], [213, 292], [213, 292], [213, 293], [213, 294], [213, 294], [213, 295], [212, 295], [212, 297], [212, 298], [212, 299], [212, 300], [212, 301], [212, 302], [211, 303], [211, 303], [211, 304], [211, 308], [211, 311], [211, 313], [211, 317], [210, 322], [210, 326], [210, 327]]" />
           <attvalue for="4" value="false" />
         </attvalues>
       </edge>
-      <edge source="Floor1_Node_16" target="Floor1_Node_16" id="16" weight="17.4">
+      <edge source="Floor1_Node_16" target="Floor1_Node_16" id="18" weight="17.4">
         <attvalues>
           <attvalue for="3" value="[[210, 330], [217, 330], [221, 331], [223, 332], [224, 332], [224, 332], [224, 332], [224, 332], [225, 332], [225, 332], [225, 332], [225, 332], [225, 332], [225, 333], [225, 332]]" />
           <attvalue for="4" value="false" />
         </attvalues>
       </edge>
-      <edge source="Floor1_Node_16" target="Floor1_Node_17" id="17" weight="229.5">
+      <edge source="Floor1_Node_16" target="Floor1_Node_17" id="19" weight="229.5">
         <attvalues>
           <attvalue for="3" value="[[212, 331], [212, 331], [221, 332], [226, 333], [264, 339], [286, 336], [311, 334], [317, 334], [317, 333], [316, 332], [316, 332], [316, 333], [315, 333], [316, 333], [318, 334], [320, 334], [321, 334], [322, 334], [322, 334], [323, 334], [324, 334], [325, 334], [326, 334], [326, 335], [327, 335], [328, 335], [329, 335], [330, 335], [331, 335], [331, 335], [332, 335], [332, 335], [333, 335], [333, 335], [334, 335], [334, 335], [335, 335], [335, 335], [336, 336], [336, 336], [337, 336], [337, 336], [338, 336], [338, 336], [339, 336], [339, 336], [340, 336], [340, 336], [340, 336], [342, 336], [343, 336], [345, 336], [348, 336], [354, 336], [357, 329], [359, 312], [359, 305], [353, 290], [355, 277], [359, 262], [359, 260]]" />
           <attvalue for="4" value="false" />
-        </attvalues>
-      </edge>
-      <edge source="Bottom Floor Top Staircase" target="Floor2_Node_1" id="18" weight="10">
-        <attvalues>
-          <attvalue for="3" value="[]" />
-          <attvalue for="4" value="true" />
-        </attvalues>
-      </edge>
-      <edge source="West Staircase" target="Floor2_Node_4" id="19" weight="10">
-        <attvalues>
-          <attvalue for="3" value="[]" />
-          <attvalue for="4" value="true" />
         </attvalues>
       </edge>
       <edge source="Floor2_Node_1" target="Floor2_Node_2" id="20" weight="73.0">

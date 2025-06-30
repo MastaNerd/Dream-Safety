@@ -66,12 +66,19 @@ def draw_graph(img, G, pos, floor_info=None):
 def find_and_draw_shortest_path(G, pos, floor_info, img, node1, node2):
     """Find and draw shortest path, handling multi-floor paths without drawing lines between stairs"""
     try:
+        # Initialize TTS engine
+        tts_engine = pyttsx3.init()
+        tts_engine.setProperty('rate', 150)  # Adjust speech rate
+        tts_engine.setProperty('volume', 0.9)  # Adjust volume
+
         # Check if nodes are the same
         if node1 == node2:
             cv2.circle(img, (int(pos[node1][0]), int(pos[node1][1])), 12, (0, 0, 255), -1)
             cv2.putText(img, "Same node!", (int(pos[node1][0])+15, int(pos[node1][1])),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             print("Start and end nodes are the same")
+            tts_engine.say("Start and end nodes are the same")
+            tts_engine.runAndWait()
             return None
 
         # Find shortest path
@@ -151,20 +158,28 @@ def find_and_draw_shortest_path(G, pos, floor_info, img, node1, node2):
         # Print path details including floor transitions
         print("\n=== Path Details ===")
         current_floor = floor_info.get(path_nodes[0], "Unknown")
-        print(f"Start at {path_nodes[0]} on {current_floor}")
+        start_msg = f"Start at {path_nodes[0]} on {current_floor}"
+        print(start_msg)
+        tts_engine.say(start_msg)
         
         for i in range(1, len(path_nodes)):
             node = path_nodes[i]
             new_floor = floor_info.get(node, "Unknown")
             if new_floor != current_floor:
-                engine.say("  Take stairs: {path_nodes[i-1]} ({current_floor}) → {node} ({new_floor})")
-                engine.runAndWait()
-                print(f"  Take stairs: {path_nodes[i-1]} ({current_floor}) → {node} ({new_floor})")
+                stair_msg = f"Take stairs from {path_nodes[i-1]} on {current_floor} to {node} on {new_floor}"
+                print(f"  {stair_msg}")
+                tts_engine.say(stair_msg)
                 current_floor = new_floor
-            print(f"  Move to: {node} on {current_floor}")
+            
+            move_msg = f"Move to {node} on {current_floor}"
+            print(f"  {move_msg}")
+            tts_engine.say(move_msg)
         
-        print(f"\nTotal distance: {path_length:.1f} pixels")
+        arrival_msg = f"Arrived at destination. Total distance: {path_length:.1f} pixels"
+        print(f"\n{arrival_msg}")
         print("===================")
+        tts_engine.say(arrival_msg)
+        tts_engine.runAndWait()  # Speak all queued messages
 
         # Blend the path visualization with the original image
         cv2.addWeighted(path_img, 0.7, img, 0.3, 0, img)
@@ -172,18 +187,22 @@ def find_and_draw_shortest_path(G, pos, floor_info, img, node1, node2):
         return path_nodes
         
     except nx.NetworkXNoPath:
-        print(f"No path exists between {node1} and {node2}")
+        error_msg = f"No path exists between {node1} and {node2}"
+        print(error_msg)
+        tts_engine.say(error_msg)
+        tts_engine.runAndWait()
         return None
     except Exception as e:
-        print(f"Error finding path: {e}")
+        error_msg = f"Error finding path: {e}"
+        print(error_msg)
+        tts_engine.say(error_msg)
+        tts_engine.runAndWait()
         return None
 
 def main():
     gexf_file = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan_combined.gexf"
     original_image_path = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan.JPG"
     
-    engine = pyttsx3.init()
-
     try:
         G, pos, floor_info, img = load_combined_graph(gexf_file, original_image_path)
     except Exception as e:

@@ -16,14 +16,16 @@ class MultiFloorEditor:
         self.current_path = []
         self.nodes = {}
         self.stair_selection = None
-            
+        
         # Full image
         self.full_image = None
         self.display_image = None
-        self.image_path = None
 
     def configure_floors(self, image_path, floor_names):
-        """Configure multiple floors within a single image"""
+        """
+        Configure multiple floors within a single image
+        floor_names = ['Floor1', 'Floor2', ...]
+        """
         self.full_image = cv2.imread(image_path)
         if self.full_image is None:
             print(f"Error: Image not found at {image_path}")
@@ -34,95 +36,38 @@ class MultiFloorEditor:
         
         # Initialize floor data
         for floor_name in floor_names:
-            # Create graph if it doesn't exist
-            gexf_path = f"{os.path.splitext(image_path)[0]}_{floor_name}.gexf"
-            if os.path.exists(gexf_path):
-                G = nx.read_gexf(gexf_path)
-                # Convert position attributes to float
-                nodes = {}
-                for node, data in G.nodes(data=True):
-                    nodes[node] = (float(data['pos_x']), float(data['pos_y']))
-            else:
-                G = nx.Graph()
-                nodes = {}
-            
+            # Initialize empty floor data
             self.floors[floor_name] = {
-                'graph': G,
-                'nodes': nodes,
+                'graph': nx.Graph(),
+                'nodes': {},
                 'color': tuple(np.random.randint(0, 255, 3).tolist())
             }
             
-            # Add to combined graph
-            self.combined_graph = nx.compose(self.combined_graph, G)
-            
-            if not self.current_floor:
-                self.current_floor = floor_name
-                
         # Try to load combined graph if it exists
         combined_path = f"{os.path.splitext(image_path)[0]}_combined.gexf"
         if os.path.exists(combined_path):
             self.load_combined_graph(combined_path)
+        else:
+            # Load individual floor graphs if they exist
+            for floor_name in floor_names:
+                gexf_path = f"{os.path.splitext(image_path)[0]}_{floor_name}.gexf"
+                if os.path.exists(gexf_path):
+                    G = nx.read_gexf(gexf_path)
+                    # Convert position attributes to float
+                    nodes = {}
+                    for node, data in G.nodes(data=True):
+                        nodes[node] = (float(data['pos_x']), float(data['pos_y']))
+                    self.floors[floor_name]['graph'] = G
+                    self.floors[floor_name]['nodes'] = nodes
+                    self.combined_graph = nx.compose(self.combined_graph, G)
+                
+        if not self.current_floor and floor_names:
+            self.current_floor = floor_names[0]
                 
         return True
 
-    def _rename_node(self, old_name, new_name):
-        """Renames a node while preserving all edge attributes in an undirected graph"""
-        # Store all connections and their attributes before renaming
-        connections = {}
-        
-        # Record all edges connected to the old node with their data
-        for floor_name, floor_data in self.floors.items():
-            connections[floor_name] = list(floor_data['graph'].edges(old_name, data=True))
-        
-        # Record combined graph connections
-        combined_edges = list(self.combined_graph.edges(old_name, data=True))
-        
-        # Proceed with the original renaming logic
-        for floor_name, floor_data in self.floors.items():
-            if old_name in floor_data['nodes']:
-                pos = floor_data['nodes'].pop(old_name)
-                floor_data['nodes'][new_name] = pos
-                
-                if old_name in floor_data['graph']:
-                    data = dict(floor_data['graph'].nodes[old_name])
-                    floor_data['graph'].remove_node(old_name)
-                    floor_data['graph'].add_node(new_name, **data)
-                    
-                    # Recreate edges with the new name and original attributes
-                    for u, v, edge_data in connections[floor_name]:
-                        if u == old_name:
-                            new_u = new_name
-                            new_v = v
-                        else:
-                            new_u = u
-                            new_v = new_name
-                        floor_data['graph'].add_edge(new_u, new_v, **edge_data)
-        
-        # Update combined graph
-        if old_name in self.combined_graph:
-            data = dict(self.combined_graph.nodes[old_name])
-            self.combined_graph.remove_node(old_name)
-            self.combined_graph.add_node(new_name, **data)
-            
-            # Recreate combined graph edges
-            for u, v, edge_data in combined_edges:
-                if u == old_name:
-                    new_u = new_name
-                    new_v = v
-                else:
-                    new_u = u
-                    new_v = new_name
-                self.combined_graph.add_edge(new_u, new_v, **edge_data)
-        
-        # Update stair connections
-        for conn in self.stair_connections:
-            if conn['node1'] == old_name:
-                conn['node1'] = new_name
-            if conn['node2'] == old_name:
-                conn['node2'] = new_name
-
     def load_combined_graph(self, gexf_path):
-        """Load combined graph file"""
+        """Load a combined graph file and distribute nodes to their respective floors"""
         if not os.path.exists(gexf_path):
             return False
             
@@ -215,8 +160,9 @@ class MultiFloorEditor:
         print(f"Saved combined graph to {combined_path}")
         return True
 
+
     def get_closest_node(self, x, y, floor_name=None):
-        """Find the closest node to the given coordinates"""
+        """Find the closest node to the given coordinates on specified floor (or current floor)"""
         floor = self.floors[floor_name or self.current_floor]
         if not floor['nodes']:
             return None
@@ -276,9 +222,9 @@ class MultiFloorEditor:
                         break
                 cv2.circle(self.display_image, (int(x), int(y)), 8, node_color, -1)
                 # Label current floor's nodes with their IDs
-                if floor_name == self.current_floor:
-                    cv2.putText(self.display_image, node, (int(x)+10, int(y)), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1)
+                #if floor_name == self.current_floor:
+                    #cv2.putText(self.display_image, node, (int(x)+10, int(y)), 
+                               #cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1)
         
         # Highlight current floor
         cv2.putText(self.display_image, f"Current Floor: {self.current_floor}", (10, 30),
@@ -287,7 +233,7 @@ class MultiFloorEditor:
         cv2.imshow("Multi-Floor Editor", self.display_image)
 
     def run_editor(self):
-        """Main editor loop with node naming support"""
+        """Main editor loop"""
         if not self.current_floor:
             print("No floors loaded!")
             return
@@ -301,21 +247,11 @@ class MultiFloorEditor:
         def mouse_callback(event, x, y, flags, param):
             if event == cv2.EVENT_LBUTTONDOWN:
                 if mode == "add_nodes":
-                    default_name = f"{self.current_floor}_Node_{len(self.floors[self.current_floor]['nodes'])+1}"
-                    node_name = input(f"Enter node name (default: {default_name}): ") or default_name
-                    
-                    self.floors[self.current_floor]['nodes'][node_name] = (x, y)
-                    self.floors[self.current_floor]['graph'].add_node(node_name, pos_x=float(x), pos_y=float(y))
-                    self.combined_graph.add_node(node_name, pos_x=float(x), pos_y=float(y), floor=self.current_floor)
+                    node_id = f"{self.current_floor}_Node_{len(self.floors[self.current_floor]['nodes'])+1}"
+                    self.floors[self.current_floor]['nodes'][node_id] = (x, y)
+                    self.floors[self.current_floor]['graph'].add_node(node_id, pos_x=float(x), pos_y=float(y))
+                    self.combined_graph.add_node(node_id, pos_x=float(x), pos_y=float(y), floor=self.current_floor)
                     self.redraw_display()
-                
-                elif mode == "rename_nodes":
-                    node = self.get_closest_node(x, y)
-                    if node:
-                        new_name = input(f"Enter new name for node {node}: ")
-                        if new_name and new_name != node:
-                            self._rename_node(node, new_name)
-                            self.redraw_display()
                 
                 elif mode == "add_edges":
                     self.drawing = True
@@ -385,10 +321,9 @@ class MultiFloorEditor:
         print("1. Press 'n' to add nodes mode")
         print("2. Press 'e' to add edges mode")
         print("3. Press 's' to add stair connections mode")
-        print("4. Press 'r' to rename nodes mode")
-        print("5. Press '1', '2' etc. to switch floors")
-        print("6. Press 'c' to save combined graph")
-        print("7. Press 'q' to quit")
+        print("4. Press '1', '2' etc. to switch floors")
+        print("5. Press 'c' to save combined graph")
+        print("6. Press 'q' to quit")
         
         while True:
             key = cv2.waitKey(1) & 0xFF
@@ -397,19 +332,15 @@ class MultiFloorEditor:
             elif key == ord('n'):
                 mode = "add_nodes"
                 self.stair_selection = None
-                print("Mode: Add Nodes - Click to add, then enter name")
+                print("Mode: Add Nodes")
             elif key == ord('e'):
                 mode = "add_edges"
                 self.stair_selection = None
-                print("Mode: Add Edges - Click start and end points")
+                print("Mode: Add Edges")
             elif key == ord('s'):
                 mode = "add_stairs"
                 self.stair_selection = None
                 print("Mode: Add Stairs - Select first node")
-            elif key == ord('r'):
-                mode = "rename_nodes"
-                self.stair_selection = None
-                print("Mode: Rename Nodes - Click a node to rename it")
             elif key >= ord('1') and key <= ord('9'):
                 floor_idx = key - ord('1')
                 floor_names = list(self.floors.keys())
@@ -427,10 +358,10 @@ class MultiFloorEditor:
 if __name__ == "__main__":
     editor = MultiFloorEditor()
     
-    # Configure floors - just provide names
+    # Configure floors - just provide names, no position bounds needed
     image_path = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan.JPG"
     floor_names = ['Floor1', 'Floor2', 'Floor3']  # Now with 3 floors
-    
+
     if editor.configure_floors(image_path, floor_names):
         editor.run_editor()
     else:
