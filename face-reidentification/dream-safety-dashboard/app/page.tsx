@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import PathfindingMap from "@/components/PathfindingMap"
 import {
   Shield,
   Camera,
@@ -684,28 +685,16 @@ export default function DreamSafetyDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="h-full">
-                <div className="bg-slate-100 rounded-lg h-full relative overflow-hidden min-h-[400px]">
-                  {floorPlanImage ? (
-                    <img
-                      src={`data:image/jpeg;base64,${floorPlanImage}`}
-                      alt="School Floor Plan with Path"
-                      className="w-full h-full object-contain"
-                      onLoad={() => console.log("Floor plan image loaded successfully")}
-                      onError={(e) => console.error("Floor plan image failed to load:", e)}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-500">
-                      <div className="text-center">
-                        <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>Waiting for floor plan...</p>
-                        <p className="text-xs mt-2">WebSocket: {isConnected ? "Connected" : "Disconnected"}</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Path Instructions Overlay */}
+                <div className="relative h-full min-h-[420px]">
+                  <PathfindingMap
+                    onPathComputed={(instructions, distance) => {
+                      setPathInstructions(instructions)
+                      setPathDistance(distance)
+                    }}
+                  />
+
                   {pathInstructions.length > 0 && (
-                    <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 max-w-xs max-h-48 overflow-y-auto">
+                    <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 max-w-xs max-h-48 overflow-y-auto shadow-sm">
                       <div className="text-xs font-semibold mb-2 flex items-center gap-1">
                         <Navigation className="h-3 w-3" />
                         Navigation Instructions
@@ -725,7 +714,7 @@ export default function DreamSafetyDashboard() {
                       )}
                     </div>
                   )}
-                  
+
                   {/* Officer Controls */}
                   <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg p-3">
                     <div className="text-xs font-semibold mb-2">Officer Controls</div>
@@ -756,7 +745,7 @@ export default function DreamSafetyDashboard() {
                       </Button>
                     </div>
                   </div>
-                  
+
                   {/* Legend */}
                   <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 text-xs space-y-1">
                     <div className="flex items-center gap-2">
