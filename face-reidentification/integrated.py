@@ -12,6 +12,7 @@ import websockets
 from datetime import datetime
 import base64
 from typing import Dict, List, Tuple, Optional
+import networkx as nx
 
 from models import SCRFD, ArcFace
 from utils.helpers import compute_similarity
@@ -29,6 +30,108 @@ class SimpleMapService:
         _, buffer = cv2.imencode('.jpg', self.floor_plan, [cv2.IMWRITE_JPEG_QUALITY, 70])
         img_base64 = base64.b64encode(buffer).decode('utf-8')
         return img_base64
+
+
+class PathfindingService:
+    def __init__(self, gexf_file: str, floorplan_path: str):
+        self.G = nx.read_gexf(gexf_file)
+        self.floor_plan = cv2.imread(floorplan_path)
+        if self.floor_plan is None:
+            raise FileNotFoundError(f"Could not read blueprint image: {floorplan_path}")
+
+        for _, _, data in self.G.edges(data=True):
+            data['weight'] = float(data.get('weight', 1.0))
+            if 'path' not in data:
+                data['path'] = '[]'
+
+        self.pos = {}
+        self.floor_info = {}
+        self.labels = {}
+
+        nodes_data = list(self.G.nodes(data=True))
+        nodes_data.sort(key=lambda nd: nd[0])
+        for idx_node, (node, data) in enumerate(nodes_data):
+            self.pos[node] = (float(data['pos_x']), float(data['pos_y']))
+            self.floor_info[node] = data.get('floor', 'Unknown')
+            self.labels[node] = data.get('label', node)
+
+    def pretty_node_name(self, node: str) -> str:
+        base_label = self.labels.get(node, node)
+        prefix = base_label.split('_')[0].upper()
+        LOCATION_CONTEXT = {
+            'ENTRY': 'Entry', 'CLASS': 'Classroom', 'TP': 'Teacher Planning', 'SPED': 'Special Education',
+            'HUB': 'Interdisciplinary Hub', 'LAB': 'Teaching Lab', 'FIT': 'Fitness', 'TH': 'Theater',
+            'TRK': 'Track', 'MC': 'Media Center', 'ART': 'Art', 'MUSIC': 'Music', 'BBT': 'Black-Box Theater',
+            'MK': 'Makerspace', 'TSHOP': 'Theater Shop', 'GYM': 'Gymnasium', 'LOCK': 'Locker Rooms',
+            'KIT': 'Kitchen/Servery', 'DINING': 'Dining Commons', 'PREK': 'Pre-K'
+        }
+        if prefix in LOCATION_CONTEXT:
+            return f"{LOCATION_CONTEXT[prefix]} ({base_label})"
+        return base_label
+
+    def find_path(self, start_node: str, end_node: str):
+        if start_node == end_node:
+            return {
+                'status': 'same_node',
+                'path': [start_node],
+                'distance': 0.0,
+                'instructions': ['Already at destination'],
+            }
+        try:
+            path_nodes = nx.shortest_path(self.G, source=start_node, target=end_node, weight='weight')
+            path_length = nx.shortest_path_length(self.G, source=start_node, target=end_node, weight='weight')
+        except nx.NetworkXNoPath:
+            return {'status': 'no_path', 'error': f'No path between {start_node} and {end_node}'}
+
+        instructions = []
+        current_floor = self.floor_info.get(path_nodes[0], 'Unknown')
+        instructions.append(f"Start at {self.pretty_node_name(path_nodes[0])} on {current_floor}")
+        for i in range(1, len(path_nodes)):
+            prev_node = path_nodes[i-1]
+            node = path_nodes[i]
+            new_floor = self.floor_info.get(node, current_floor)
+            edge_data = self.G.get_edge_data(prev_node, node, default={})
+            is_stair = edge_data.get('is_stair', 'false') == 'true'
+            prev_name = self.pretty_node_name(prev_node)
+            curr_name = self.pretty_node_name(node)
+            if is_stair and new_floor != current_floor:
+                text = f"Take stairs from {current_floor} at {prev_name} to {new_floor} at {curr_name}"
+                current_floor = new_floor
+            else:
+                text = f"Go from {prev_name} → {curr_name} on {current_floor}"
+            instructions.append(text)
+        instructions.append(f"Arrived at {self.pretty_node_name(end_node)} on {current_floor}")
+        return {
+            'status': 'success',
+            'path': path_nodes,
+            'distance': path_length,
+            'instructions': instructions,
+        }
+
+    def render_path_base64(self, path_nodes: list[str]) -> str:
+        img = self.floor_plan.copy()
+        for i in range(len(path_nodes) - 1):
+            u, v = path_nodes[i], path_nodes[i + 1]
+            if not self.G.has_edge(u, v):
+                continue
+            edge_data = self.G.get_edge_data(u, v)
+            color = (255, 0, 255) if edge_data.get('is_stair', 'false') == 'true' else (0, 0, 255)
+            try:
+                pts_list = json.loads(edge_data.get('path', '[]'))
+                pts = np.array([(int(x), int(y)) for x, y in pts_list], dtype=np.int32)
+                cv2.polylines(img, [pts], False, color, 3)
+            except Exception:
+                p1 = (int(self.pos[u][0]), int(self.pos[u][1]))
+                p2 = (int(self.pos[v][0]), int(self.pos[v][1]))
+                cv2.line(img, p1, p2, color, 3)
+        if path_nodes:
+            start = (int(self.pos[path_nodes[0]][0]), int(self.pos[path_nodes[0]][1]))
+            end = (int(self.pos[path_nodes[-1]][0]), int(self.pos[path_nodes[-1]][1]))
+            cv2.circle(img, start, 9, (0, 255, 0), -1)
+            cv2.circle(img, end, 9, (0, 0, 255), -1)
+        _, buf = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        return base64.b64encode(buf).decode('utf-8')
+
 
 # --- Detection Helper Functions ---
 def find_pose_for_face(face_bbox, pose_landmarks, frame_shape):
@@ -75,8 +178,12 @@ class CombinedDetectorWithMap:
         self.known_face_names = []
         self.identified_threats = set()
         
-        # Initialize simple map service
-        self.map_service = SimpleMapService(floor_plan_image)
+        # Initialize map services (prefer shared Pathfinding assets one level up)
+        path_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Pathfinding"))
+        default_gexf = gexf_file or os.path.join(path_base, "BMHS_FloorPlan_combined.gexf")
+        default_plan = floor_plan_image or os.path.join(path_base, "BMHS_FloorPlan.JPG")
+        self.map_service = SimpleMapService(default_plan)
+        self.path_service = PathfindingService(default_gexf, default_plan)
         
         # WebSocket clients
         self.websocket_clients = set()
@@ -201,17 +308,42 @@ class CombinedDetectorWithMap:
             for client in disconnected_clients:
                 await self.unregister_client(client)
     
-    async def handle_simple_requests(self, request_data):
+    async def handle_simple_requests(self, request_data, websocket=None):
         """Handle simple requests from the dashboard"""
         request_type = request_data.get("type") or request_data.get("request_type")
         
         if request_type == "get_floor_plan":
-            # Send floor plan
             floor_plan = self.map_service.get_base_floor_plan()
-            await self.broadcast_data({
-                "type": "floor_plan_init",
-                "floor_plan": floor_plan
-            })
+            payload = {"type": "floor_plan_init", "floor_plan": floor_plan}
+            if websocket:
+                await websocket.send(json.dumps(payload))
+            else:
+                await self.broadcast_data(payload)
+        elif request_type == "pathfinding_request":
+            start = request_data.get("start_node") or request_data.get("start") or request_data.get("officer_node")
+            end = request_data.get("end_node") or request_data.get("end") or request_data.get("threat_node")
+            if not start or not end:
+                response = {"type": "pathfinding_response", "status": "error", "error": "start/end required"}
+            else:
+                result = self.path_service.find_path(start, end)
+                if result.get("status") == "success":
+                    img_b64 = self.path_service.render_path_base64(result.get("path", []))
+                    response = {
+                        "type": "pathfinding_response",
+                        "status": "success",
+                        "path": result.get("path"),
+                        "distance": result.get("distance"),
+                        "instructions": result.get("instructions"),
+                        "floor_plan": img_b64,
+                        "start": start,
+                        "end": end,
+                    }
+                else:
+                    response = {"type": "pathfinding_response", **result}
+            if websocket:
+                await websocket.send(json.dumps(response))
+            else:
+                await self.broadcast_data(response)
 
 def create_detection_payload(face_detections, gun_detections, frame, location="Main Campus"):
     """Create a JSON payload with detection results."""
@@ -322,7 +454,7 @@ async def websocket_handler(websocket, detector):
                 
                 # Handle different message types
                 if data.get("type") == "pathfinding_request":
-                    await detector.handle_simple_requests(data)
+                    await detector.handle_simple_requests(data, websocket)
                     
                 elif data.get("type") == "ping":
                     await websocket.send(json.dumps({"type": "pong"}))
@@ -457,7 +589,8 @@ async def main():
     FACES_DIR = "./faces"
     
     # Floor plan configuration
-    FLOOR_PLAN_IMAGE = "./BMHS_FloorPlan.JPG"
+    FLOOR_PLAN_IMAGE = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan.JPG"
+    GEXF_FILE = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan_combined.gexf"
     
     GUN_CONF_THRESHOLD = 0.75
     WEBSOCKET_PORT = 8766
@@ -467,7 +600,7 @@ async def main():
         rec_weight=REC_WEIGHT,
         gun_weight=GUN_WEIGHT,
         faces_dir=FACES_DIR,
-        gexf_file=None,
+        gexf_file=GEXF_FILE,
         floor_plan_image=FLOOR_PLAN_IMAGE
     )
     

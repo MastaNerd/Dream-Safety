@@ -29,6 +29,33 @@ class MultiFloorEditor:
       - is_stair    : "true" / "false"
     """
 
+
+    FRIENDLY_BASE_NAMES = [
+        "Atrium Corner",
+        "Main Hall",
+        "Commons Bend",
+        "Library Nook",
+        "Science Wing",
+        "Gym Lobby",
+        "Art Walk",
+        "Music Hall",
+        "East Stair",
+        "West Stair",
+        "North Stair",
+        "South Stair",
+        "Media Center",
+        "Lab Crossway",
+        "Hub Junction",
+        "Dining Entry",
+        "Courtyard Edge",
+        "Bridge Hall",
+        "Theater Walk",
+        "Locker Row",
+        "Fitness Hall",
+        "Makerspace Turn",
+        "Admin Lobby",
+    ]
+
     def __init__(self, image_path: str, floor_names: List[str]):
         self.image_path = image_path
         self.full_image = cv2.imread(image_path)
@@ -50,6 +77,7 @@ class MultiFloorEditor:
         self.current_floor: str = floor_names[0]
         self.combined_graph = nx.Graph()
         self.stair_connections: List[Dict] = []
+        self.name_index: int = 0
 
         # drawing state
         self.drawing: bool = False
@@ -64,6 +92,12 @@ class MultiFloorEditor:
             self.load_combined_graph(combined_path)
         else:
             print("No existing combined graph found, starting fresh.")
+
+    def _friendly_label(self, floor: str) -> str:
+        """Generate a friendlier default label when adding or loading nodes."""
+        name = self.FRIENDLY_BASE_NAMES[self.name_index % len(self.FRIENDLY_BASE_NAMES)]
+        self.name_index += 1
+        return f"{name} ({floor})"
 
     # -------------------------------------------------------------------------
     # Loading / saving
@@ -89,12 +123,15 @@ class MultiFloorEditor:
             x = float(data["pos_x"])
             y = float(data["pos_y"])
             self.floors[floor_name]["nodes"][node] = (x, y)
+            label = data.get("label", node)
+            if "Node" in label or label.startswith("Floor"):
+                label = self._friendly_label(floor_name)
             self.floors[floor_name]["graph"].add_node(
                 node,
                 pos_x=x,
                 pos_y=y,
                 floor=floor_name,
-                label=data.get("label", node),
+                label=label,
             )
 
         # edges
@@ -302,20 +339,21 @@ class MultiFloorEditor:
             if event == cv2.EVENT_LBUTTONDOWN:
                 if mode == "add_nodes":
                     node_id = f"{self.current_floor}_Node_{len(self.floors[self.current_floor]['nodes']) + 1}"
+                    label = self._friendly_label(self.current_floor)
                     self.floors[self.current_floor]["nodes"][node_id] = (x, y)
                     self.floors[self.current_floor]["graph"].add_node(
                         node_id,
                         pos_x=float(x),
                         pos_y=float(y),
                         floor=self.current_floor,
-                        label=node_id,
+                        label=label,
                     )
                     self.combined_graph.add_node(
                         node_id,
                         pos_x=float(x),
                         pos_y=float(y),
                         floor=self.current_floor,
-                        label=node_id,
+                        label=label,
                     )
                     self.redraw_display()
 

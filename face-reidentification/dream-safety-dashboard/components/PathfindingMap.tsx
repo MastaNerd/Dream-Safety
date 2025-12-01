@@ -25,6 +25,74 @@ type PathfindingMapProps = {
 const GEXF_PATH = "/BMHS_FloorPlan_combined.gexf"
 const IMAGE_PATH = "/BMHS_FloorPlan.JPG"
 
+const LOCATION_CONTEXT: Record<string, string> = {
+  ENTRY: "Entry",
+  CLASS: "Classroom",
+  TP: "Teacher Planning",
+  SPED: "Special Education",
+  HUB: "Interdisciplinary Hub",
+  LAB: "Teaching Lab",
+  FIT: "Fitness",
+  TH: "Theater",
+  TRK: "Track",
+  MC: "Media Center",
+  ART: "Art",
+  MUSIC: "Music",
+  BBT: "Black-Box Theater",
+  MK: "Makerspace",
+  TSHOP: "Theater Shop",
+  GYM: "Gymnasium",
+  LOCK: "Locker Rooms",
+  KIT: "Kitchen/Servery",
+  DINING: "Dining Commons",
+  PREK: "Pre-K",
+}
+
+const FRIENDLY_BASE_NAMES = [
+  "Atrium Corner",
+  "Main Hall",
+  "Commons Bend",
+  "Library Nook",
+  "Science Wing",
+  "Gym Lobby",
+  "Art Walk",
+  "Music Hall",
+  "East Stair",
+  "West Stair",
+  "North Stair",
+  "South Stair",
+  "Media Center",
+  "Lab Crossway",
+  "Hub Junction",
+  "Dining Entry",
+  "Courtyard Edge",
+  "Bridge Hall",
+  "Theater Walk",
+  "Locker Row",
+  "Fitness Hall",
+  "Makerspace Turn",
+  "Admin Lobby",
+]
+
+function friendlyLabel(rawLabel: string, floor: string, idx: number): string {
+  const areaMatch = rawLabel.match(/^([A-Za-z]+)_F\d+/)
+  if (areaMatch) {
+    const code = areaMatch[1].toUpperCase()
+    if (LOCATION_CONTEXT[code]) {
+      return `${LOCATION_CONTEXT[code]} (${rawLabel})`
+    }
+  }
+  if (rawLabel.includes("Node") || rawLabel.startsWith("Floor")) {
+    const base = FRIENDLY_BASE_NAMES[idx % FRIENDLY_BASE_NAMES.length]
+    return `${base} (${floor})`
+  }
+  return rawLabel
+}
+
+function prettyLabel(nodeId: string, nodesById: Map<string, NodeData>): string {
+  return nodesById.get(nodeId)?.label || nodeId
+}
+
 function parseGexf(text: string): { nodes: NodeData[]; edges: EdgeData[] } {
   const parser = new DOMParser()
   const xml = parser.parseFromString(text, "application/xml")
@@ -44,9 +112,10 @@ function parseGexf(text: string): { nodes: NodeData[]; edges: EdgeData[] } {
   })
 
   const nodes: NodeData[] = []
-  xml.querySelectorAll("node").forEach((node) => {
+  const nodeElements = Array.from(xml.querySelectorAll("node"))
+  nodeElements.forEach((node, idx) => {
     const id = node.getAttribute("id") || ""
-    const label = node.getAttribute("label") || id
+    const rawLabel = node.getAttribute("label") || id
     const attrValues = new Map<string, string>()
     node.querySelectorAll("attvalue").forEach((av) => {
       const key = av.getAttribute("for") || ""
@@ -54,12 +123,14 @@ function parseGexf(text: string): { nodes: NodeData[]; edges: EdgeData[] } {
       const val = av.getAttribute("value") || ""
       attrValues.set(title, val)
     })
+    const floorName = attrValues.get("floor") || "Unknown"
+    const label = friendlyLabel(rawLabel, floorName, idx)
     nodes.push({
       id,
       label,
       x: Number.parseFloat(attrValues.get("pos_x") || "0"),
       y: Number.parseFloat(attrValues.get("pos_y") || "0"),
-      floor: attrValues.get("floor") || "Unknown",
+      floor: floorName,
     })
   })
 
@@ -163,13 +234,13 @@ function buildInstructions(
 ): string[] {
   if (path.length === 0) return []
   const instructions: string[] = []
-  instructions.push(`Start at ${nodesById.get(path[0])?.label || path[0]}`)
+  instructions.push(`Start at ${prettyLabel(path[0], nodesById)}`)
   for (let i = 1; i < path.length; i++) {
     const from = path[i - 1]
     const to = path[i]
     const key = `${from}|${to}`
     const edge = edgesByKey.get(key) || edgesByKey.get(`${to}|${from}`)
-    const toLabel = nodesById.get(to)?.label || to
+    const toLabel = prettyLabel(to, nodesById)
     const fromNode = nodesById.get(from)
     const toNode = nodesById.get(to)
     if (edge?.isStair && fromNode && toNode && fromNode.floor !== toNode.floor) {
@@ -179,7 +250,7 @@ function buildInstructions(
       instructions.push(`Move to ${toLabel}`)
     }
   }
-  instructions.push(`Arrive at ${nodesById.get(path[path.length - 1])?.label || path[path.length - 1]}`)
+  instructions.push(`Arrive at ${prettyLabel(path[path.length - 1], nodesById)}`)
   return instructions
 }
 
@@ -189,12 +260,15 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
   const [image, setImage] = useState<HTMLImageElement | null>(null)
   const [nodes, setNodes] = useState<NodeData[]>([])
   const [edges, setEdges] = useState<EdgeData[]>([])
-  const [selected, setSelected] = useState<{ start?: string; end?: string }>({})
   const [path, setPath] = useState<string[]>([])
   const [distance, setDistance] = useState(0)
+  const [instructions, setInstructions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentFloor, setCurrentFloor] = useState<string | null>(null)
+  const [assignMode, setAssignMode] = useState<"officer" | "threat" | null>(null)
+  const [officerNode, setOfficerNode] = useState<string | null>(null)
+  const [threatNode, setThreatNode] = useState<string | null>(null)
 
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
   const edgesByKey = useMemo(() => {
@@ -221,14 +295,13 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
         const parsed = parseGexf(txt)
         setNodes(parsed.nodes)
         setEdges(parsed.edges)
-        if (!currentFloor && parsed.nodes.length > 0) {
+        if (parsed.nodes.length > 0) {
           const floorList = Array.from(new Set(parsed.nodes.map((n) => n.floor))).sort()
           setCurrentFloor(floorList[0] || null)
         }
         setLoading(false)
       })
       .catch(() => setError("Failed to load map data"))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -236,7 +309,23 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, nodes, edges, path, selected, activeFloor])
+  }, [image, nodes, edges, path, activeFloor])
+
+  const computePath = (startId: string, endId: string) => {
+    const result = dijkstra(nodes, edges, startId, endId)
+    if (!result) {
+      setPath([])
+      setDistance(0)
+      setInstructions(["No path found"])
+      if (onPathComputed) onPathComputed(["No path found"], 0)
+      return
+    }
+    setPath(result.path)
+    setDistance(result.distance)
+    const instr = buildInstructions(result.path, nodesById, edgesByKey)
+    setInstructions(instr)
+    if (onPathComputed) onPathComputed(instr, result.distance)
+  }
 
   const draw = () => {
     const canvas = canvasRef.current
@@ -245,34 +334,43 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
 
     const containerWidth = container.clientWidth
     const aspect = image.height ? image.height / image.width : 1
-    canvas.width = containerWidth
-    canvas.height = Math.max(containerWidth * aspect, 420)
+    const cssWidth = containerWidth
+    const cssHeight = Math.max(containerWidth * aspect, 420)
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = Math.floor(cssWidth * dpr)
+    canvas.height = Math.floor(cssHeight * dpr)
+    canvas.style.width = `${cssWidth}px`
+    canvas.style.height = `${cssHeight}px`
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.imageSmoothingEnabled = true
+    // @ts-ignore imageSmoothingQuality may not exist in all contexts
+    ctx.imageSmoothingQuality = "high"
 
-    const scale = canvas.width / image.width
-    const offsetY = (canvas.height - image.height * scale) / 2
+    ctx.clearRect(0, 0, cssWidth, cssHeight)
+
+    const scale = cssWidth / image.width
+    const offsetY = (cssHeight - image.height * scale) / 2
 
     ctx.drawImage(image, 0, offsetY, image.width * scale, image.height * scale)
 
     ctx.lineJoin = "round"
     ctx.lineCap = "round"
 
-    const nodesOnFloor = activeFloor ? nodes.filter((n) => n.floor === activeFloor) : nodes
-    const nodeSet = new Set(nodesOnFloor.map((n) => n.id))
-    const edgesOnFloor = edges.filter(
-      (edge) => nodeSet.has(edge.source) && nodeSet.has(edge.target) && !edge.isStair,
-    )
-
-    edgesOnFloor.forEach((edge) => {
+    // draw all floors; fade non-active
+    edges.forEach((edge) => {
+      if (edge.isStair) return
+      const src = nodesById.get(edge.source)
+      const tgt = nodesById.get(edge.target)
+      if (!src || !tgt) return
+      if (src.floor != tgt.floor) return
+      const isActive = activeFloor ? src.floor === activeFloor : true
       const pts = edge.path.length
         ? edge.path
-        : [nodesById.get(edge.source), nodesById.get(edge.target)]
-            .filter(Boolean)
-            .map((n) => [n!.x, n!.y])
+        : [src, tgt].map((n) => [n.x, n.y] as [number, number])
       if (!pts.length) return
       ctx.beginPath()
       pts.forEach(([x, y], idx) => {
@@ -281,12 +379,14 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
         if (idx === 0) ctx.moveTo(px, py)
         else ctx.lineTo(px, py)
       })
-      ctx.strokeStyle = "rgba(160,160,160,0.9)"
-      ctx.lineWidth = 4
+      ctx.strokeStyle = isActive ? "rgba(160,160,160,0.9)" : "rgba(160,160,160,0.25)"
+      ctx.lineWidth = isActive ? 4 : 2
       ctx.stroke()
-      ctx.strokeStyle = "rgba(140,140,140,1)"
-      ctx.lineWidth = 2
-      ctx.stroke()
+      if (isActive) {
+        ctx.strokeStyle = "rgba(140,140,140,1)"
+        ctx.lineWidth = 2
+        ctx.stroke()
+      }
     })
 
     const pathEdgeSet = new Set<string>()
@@ -295,13 +395,17 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
       pathEdgeSet.add(`${path[i]}|${path[i - 1]}`)
     }
 
-    edgesOnFloor.forEach((edge) => {
+    edges.forEach((edge) => {
       if (!pathEdgeSet.has(`${edge.source}|${edge.target}`)) return
+      if (edge.isStair) return
+      const src = nodesById.get(edge.source)
+      const tgt = nodesById.get(edge.target)
+      if (!src || !tgt) return
+      if (src.floor != tgt.floor) return
+      const isActive = activeFloor ? src.floor === activeFloor : true
       const pts = edge.path.length
         ? edge.path
-        : [nodesById.get(edge.source), nodesById.get(edge.target)]
-            .filter(Boolean)
-            .map((n) => [n!.x, n!.y])
+        : [src, tgt].map((n) => [n.x, n.y] as [number, number])
       if (!pts.length) return
       ctx.beginPath()
       pts.forEach(([x, y], idx) => {
@@ -310,30 +414,28 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
         if (idx === 0) ctx.moveTo(px, py)
         else ctx.lineTo(px, py)
       })
-      ctx.strokeStyle = "rgba(0,0,180,0.5)"
-      ctx.lineWidth = 7
-      ctx.stroke()
-      ctx.strokeStyle = "rgba(200,0,0,0.9)"
-      ctx.lineWidth = 3
+      ctx.strokeStyle = isActive ? "rgba(200,0,0,0.9)" : "rgba(200,0,0,0.3)"
+      ctx.lineWidth = isActive ? 3 : 2
       ctx.stroke()
     })
 
-    nodesOnFloor.forEach((node) => {
+    nodes.forEach((node) => {
       const px = node.x * scale
       const py = node.y * scale + offsetY
+      const isActive = activeFloor ? node.floor === activeFloor : true
       ctx.beginPath()
-      ctx.fillStyle = "rgba(240,240,240,0.9)"
+      ctx.fillStyle = isActive ? "rgba(240,240,240,0.9)" : "rgba(240,240,240,0.3)"
       ctx.arc(px, py, 8, 0, Math.PI * 2)
       ctx.fill()
       ctx.beginPath()
-      ctx.fillStyle = "rgba(0,90,255,0.95)"
+      ctx.fillStyle = isActive ? "rgba(0,90,255,0.95)" : "rgba(0,90,255,0.35)"
       ctx.arc(px, py, 5, 0, Math.PI * 2)
       ctx.fill()
     })
 
-    if (selected.start) {
-      const n = nodesById.get(selected.start)
-      if (n && (!activeFloor || n.floor === activeFloor)) {
+    if (officerNode) {
+      const n = nodesById.get(officerNode)
+      if (n) {
         const px = n.x * scale
         const py = n.y * scale + offsetY
         ctx.beginPath()
@@ -342,9 +444,9 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
         ctx.fill()
       }
     }
-    if (selected.end) {
-      const n = nodesById.get(selected.end)
-      if (n && (!activeFloor || n.floor === activeFloor)) {
+    if (threatNode) {
+      const n = nodesById.get(threatNode)
+      if (n) {
         const px = n.x * scale
         const py = n.y * scale + offsetY
         ctx.beginPath()
@@ -358,7 +460,7 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
   useEffect(() => {
     draw()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, nodes, edges, selected, path, activeFloor])
+  }, [image, nodes, edges, path, activeFloor, officerNode, threatNode])
 
   const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -369,8 +471,10 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
     const clickX = event.clientX - rect.left
     const clickY = event.clientY - rect.top
 
-    const scale = canvas.width / image.width
-    const offsetY = (canvas.height - image.height * scale) / 2
+    const cssWidth = Number(canvas.style.width.replace('px','')) || canvas.width
+    const cssHeight = Number(canvas.style.height.replace('px','')) || canvas.height
+    const scale = cssWidth / image.width
+    const offsetY = (cssHeight - image.height * scale) / 2
     const imgX = clickX / scale
     const imgY = (clickY - offsetY) / scale
 
@@ -378,6 +482,7 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
 
     let nearest: NodeData | null = null
     let minD = Infinity
+    const clickRadius = 30
     nodesOnFloor.forEach((n) => {
       const d = Math.hypot(n.x - imgX, n.y - imgY)
       if (d < minD) {
@@ -385,32 +490,28 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
         nearest = n
       }
     })
-    if (!nearest || minD > 25) return
+    if (!nearest || minD > clickRadius) return
 
-    if (!selected.start || (selected.start && selected.end)) {
-      setSelected({ start: nearest.id, end: undefined })
-      setPath([])
-      if (onPathComputed) onPathComputed([], 0)
+    if (assignMode === "officer") {
+      setOfficerNode(nearest.id)
+      setAssignMode(null)
+      if (threatNode) {
+        computePath(nearest.id, threatNode)
+      }
       return
     }
-
-    const startId = selected.start
-    const endId = nearest.id
-    setSelected({ start: startId, end: endId })
-
-    const result = dijkstra(nodes, edges, startId, endId)
-    if (!result) {
-      setPath([])
-      setDistance(0)
-      if (onPathComputed) onPathComputed(["No path found"], 0)
+    if (assignMode === "threat") {
+      setThreatNode(nearest.id)
+      setAssignMode(null)
+      if (officerNode) {
+        computePath(officerNode, nearest.id)
+      }
       return
     }
-
-    setPath(result.path)
-    setDistance(result.distance)
-    const instructions = buildInstructions(result.path, nodesById, edgesByKey)
-    if (onPathComputed) onPathComputed(instructions, result.distance)
   }
+
+  const officerLabel = officerNode ? prettyLabel(officerNode, nodesById) : "Not set"
+  const threatLabel = threatNode ? prettyLabel(threatNode, nodesById) : "Not set"
 
   return (
     <div ref={containerRef} className="w-full h-full">
@@ -431,17 +532,7 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
           onClick={handleClick}
           aria-label="Interactive floor map"
         />
-        <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-md px-3 py-2 text-xs text-slate-700 shadow-sm">
-          <div className="font-semibold mb-1">Map controls</div>
-          <div>• Click once to set start</div>
-          <div>• Click again to set destination</div>
-        </div>
-        {path.length > 0 && (
-          <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-md px-3 py-2 text-xs text-slate-700 shadow-sm">
-            <div className="font-semibold mb-1">Path length: {distance.toFixed(1)}</div>
-            <div>{path.length} steps</div>
-          </div>
-        )}
+
         {floors.length > 1 && (
           <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-md px-2 py-1 text-xs text-slate-700 shadow-sm flex gap-1">
             {floors.map((f) => (
@@ -455,6 +546,69 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
             ))}
           </div>
         )}
+
+        <div className="absolute left-0 right-0 bottom-0 h-[40%] bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-sm text-xs text-slate-700">
+          <div className="h-full px-4 py-3 flex gap-4 overflow-hidden">
+            <div className="flex-1 min-w-[200px] h-full space-y-2 overflow-y-auto">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Map Controls</div>
+              <div className="space-y-1">
+                <div className="flex items-start gap-1">
+                  <span className="text-slate-400">•</span>
+                  <span>Choose an assignment button, then click a node.</span>
+                </div>
+                <div className="flex items-start gap-1">
+                  <span className="text-slate-400">•</span>
+                  <span>Assign both officer and threat to generate a path.</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-[220px] h-full space-y-2 overflow-y-auto">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Officer Controls</div>
+              <div className="space-y-2">
+                <button
+                  className={`w-full px-2 py-1 rounded text-left border ${assignMode === "officer" ? "border-emerald-500 bg-emerald-50" : "border-slate-200"}`}
+                  onClick={() => setAssignMode("officer")}
+                >
+                  Manually Assign Officer Location
+                </button>
+                <button
+                  className={`w-full px-2 py-1 rounded text-left border ${assignMode === "threat" ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                  onClick={() => setAssignMode("threat")}
+                >
+                  Manually Assign Threat Location
+                </button>
+                <div className="text-[11px] text-slate-600">
+                  Officer: <span className="font-semibold">{officerLabel}</span>
+                </div>
+                <div className="text-[11px] text-slate-600">
+                  Threat: <span className="font-semibold text-red-600">{threatLabel}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-[220px] h-full space-y-2 overflow-y-auto">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Navigation Instructions</div>
+              {instructions.length === 0 ? (
+                <div className="text-slate-500">No path computed</div>
+              ) : (
+                <div className="space-y-1 max-h-full overflow-y-auto overflow-x-auto pr-1">
+                  {instructions.map((instruction, idx) => (
+                    <div key={idx} className="flex items-start gap-1">
+                      <span className="text-slate-400">{idx + 1}.</span>
+                      <span>{instruction}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {distance > 0 && (
+                <div className="text-[11px] text-emerald-700 font-semibold">
+                  Distance: {distance.toFixed(1)}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
