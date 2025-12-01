@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +26,9 @@ import {
   UserX,
   CircleX,
   CheckCircle,
+  Maximize2,
+  Minimize2,
+  RefreshCw,
 } from "lucide-react"
 
 interface Detection {
@@ -56,6 +59,13 @@ interface Threat {
   timestamp: string
 }
 
+interface CameraHighlight {
+  id: string
+  camera?: string
+  floor?: string
+  label?: string
+}
+
 interface DetectionData {
   timestamp: string
   location: string
@@ -79,6 +89,7 @@ export default function DreamSafetyDashboard() {
   const [isConnected, setIsConnected] = useState(false)
   const [detectionData, setDetectionData] = useState<DetectionData | null>(null)
   const [cameraFeeds, setCameraFeeds] = useState<Array<{ location: string; frame: string; status: string; threats: number }>>([])
+  const [currentCamera, setCurrentCamera] = useState<string | null>(null)
   const [threatTimeline, setThreatTimeline] = useState<Array<{
     time: string
     event: string
@@ -104,6 +115,35 @@ export default function DreamSafetyDashboard() {
     distance: number
     instructions: string[]
   }>>([])
+  const [autoThreatNode, setAutoThreatNode] = useState<CameraHighlight | null>(null)
+  const [mapFullscreen, setMapFullscreen] = useState(false)
+  const [mapResetSignal, setMapResetSignal] = useState(0)
+  const sendSwitchCamera = useCallback(() => {
+    if (!wsRef.current) return
+    wsRef.current.send(JSON.stringify({ type: "switch_camera", direction: "next" }))
+  }, [])
+
+  const resetAll = useCallback(() => {
+    setActiveThreat(null)
+    setDetectionData(null)
+    setThreatTimeline([])
+    setNotifications([])
+    setAutoThreatNode(null)
+    setPathInstructions([])
+    setPathDistance(0)
+    setFloorPlanImage(null)
+    setEvacuationRoutes([])
+    setMapResetSignal((n) => n + 1)
+    // Mark camera feeds clear but keep last frame if present
+    setCameraFeeds((prev) => {
+      if (!prev[0]) return []
+      return [{
+        ...prev[0],
+        status: "clear",
+        threats: 0
+      }]
+    })
+  }, [])
   
   const wsRef = useRef<WebSocket | null>(null)
   const notificationIdRef = useRef(1)
@@ -128,25 +168,19 @@ export default function DreamSafetyDashboard() {
             if (data.type === "detection_data") {
               const detectionData: DetectionData = data
               setDetectionData(detectionData)
-              
-              // Update camera feeds
-              setCameraFeeds(prev => {
-                const existing = prev.findIndex(f => f.location === detectionData.location)
-                const feed = {
-                  location: detectionData.location,
-                  frame: detectionData.frame,
-                  status: detectionData.status,
-                  threats: detectionData.detections.threat_count
-                }
-                
-                if (existing >= 0) {
-                  const updated = [...prev]
-                  updated[existing] = feed
-                  return updated
-                } else {
-                  return [...prev, feed].slice(-4) // Keep only last 4 feeds
-                }
+              setCurrentCamera(detectionData.location || currentCamera)
+
+              // Update camera feed (single view, replace instead of append)
+              setCameraFeeds((prev) => {
+                const prior = prev[0]
+                return [{
+                  location: detectionData.location || prior?.location || "Camera",
+                  frame: detectionData.frame || prior?.frame || "",
+                  status: detectionData.status || prior?.status || "clear",
+                  threats: detectionData.detections?.threat_count ?? prior?.threats ?? 0,
+                }]
               })
+              setFocusedFeed(0)
               
               // Process threats
               if (detectionData.threats.length > 0) {
@@ -198,6 +232,31 @@ export default function DreamSafetyDashboard() {
                   }
                 })
               }
+            }
+            // Handle map highlight for camera location
+            else if (data.type === "camera_threat_highlight") {
+              const payload = data as { node_id: string; camera?: string; floor?: string; label?: string }
+              setAutoThreatNode({
+                id: payload.node_id,
+                camera: payload.camera,
+                floor: payload.floor,
+                label: payload.label,
+              })
+            }
+            // Camera switched ack
+            else if (data.type === "camera_switched") {
+              const cameraName = (data as { camera?: string }).camera || "Camera"
+              setCurrentCamera(cameraName)
+              setCameraFeeds((prev) => {
+                const prior = prev[0]
+                return [{
+                  location: cameraName,
+                  frame: prior?.frame || "",
+                  status: prior?.status || "clear",
+                  threats: prior?.threats ?? 0,
+                }]
+              })
+              setFocusedFeed(0)
             }
             // Handle pathfinding responses
             else if (data.type === "pathfinding_response") {
@@ -520,6 +579,47 @@ export default function DreamSafetyDashboard() {
       </header>
 
       <div className="p-6">
+        {mapFullscreen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="relative w-full h-full max-w-6xl max-h-[90vh] bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="absolute top-2 right-2 flex gap-2 z-10">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setMapFullscreen(false)}
+                  className="h-8"
+                >
+                  <Minimize2 className="h-4 w-4 mr-1" /> Exit Fullscreen
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={resetAll}
+                  className="h-8"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" /> Reset Threats
+                </Button>
+              </div>
+              <PathfindingMap
+                onPathComputed={(instructions, distance) => {
+                  setPathInstructions(instructions)
+                  setPathDistance(distance)
+                }}
+                autoThreatNode={
+                  autoThreatNode
+                    ? {
+                        id: autoThreatNode.id,
+                        floor: autoThreatNode.floor,
+                        label: autoThreatNode.label,
+                      }
+                    : undefined
+                }
+                resetSignal={mapResetSignal}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-12 gap-6 h-[calc(100vh-140px)]">
           {/* Left Sidebar - Live CCTV Feeds */}
           <div className="col-span-3 space-y-4">
@@ -530,6 +630,14 @@ export default function DreamSafetyDashboard() {
                 <Badge variant="outline" className="text-xs">
                   Feed {focusedFeed + 1}
                 </Badge>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="ml-auto text-xs"
+                  onClick={sendSwitchCamera}
+                >
+                  Switch Camera
+                </Button>
               </h2>
 
               <div className="space-y-3">
@@ -551,7 +659,7 @@ export default function DreamSafetyDashboard() {
                           />
                         )}
                         <div className="absolute top-2 left-2 bg-black/80 text-white text-xs px-2 py-1 rounded font-mono">
-                          {feed.location}
+                          {currentCamera || feed.location}
                         </div>
                         <div className="absolute top-2 right-2">
                           <Badge className={`${
@@ -574,9 +682,10 @@ export default function DreamSafetyDashboard() {
                     </Card>
                   ))
                 ) : (
-                  <div className="text-center text-slate-500 py-8">
+                  <div className="text-center text-slate-500 py-8 space-y-1">
                     <Camera className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Waiting for camera feeds...</p>
+                    <p className="text-sm">Waiting for camera feed...</p>
+                    {currentCamera && <p className="text-xs text-slate-400">Current: {currentCamera}</p>}
                   </div>
                 )}
               </div>
@@ -681,6 +790,22 @@ export default function DreamSafetyDashboard() {
                     >
                       Floor 2
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => setMapFullscreen(true)}
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-red-600"
+                      onClick={resetAll}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -691,8 +816,17 @@ export default function DreamSafetyDashboard() {
                       setPathInstructions(instructions)
                       setPathDistance(distance)
                     }}
+                    autoThreatNode={
+                      autoThreatNode
+                        ? {
+                            id: autoThreatNode.id,
+                            floor: autoThreatNode.floor,
+                            label: autoThreatNode.label,
+                          }
+                        : undefined
+                    }
+                    resetSignal={mapResetSignal}
                   />
-
                 </div>
               </CardContent>
             </Card>

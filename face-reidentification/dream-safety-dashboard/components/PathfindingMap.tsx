@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 
 type NodeData = {
   id: string
@@ -20,6 +20,8 @@ type EdgeData = {
 
 type PathfindingMapProps = {
   onPathComputed?: (instructions: string[], distance: number) => void
+  autoThreatNode?: { id: string; floor?: string; label?: string }
+  resetSignal?: number
 }
 
 const GEXF_PATH = "/BMHS_FloorPlan_combined.gexf"
@@ -254,7 +256,7 @@ function buildInstructions(
   return instructions
 }
 
-export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) {
+export default function PathfindingMap({ onPathComputed, autoThreatNode, resetSignal }: PathfindingMapProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [image, setImage] = useState<HTMLImageElement | null>(null)
@@ -311,7 +313,7 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [image, nodes, edges, path, activeFloor])
 
-  const computePath = (startId: string, endId: string) => {
+  const computePath = useCallback((startId: string, endId: string) => {
     const result = dijkstra(nodes, edges, startId, endId)
     if (!result) {
       setPath([])
@@ -325,7 +327,7 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
     const instr = buildInstructions(result.path, nodesById, edgesByKey)
     setInstructions(instr)
     if (onPathComputed) onPathComputed(instr, result.distance)
-  }
+  }, [nodes, edges, nodesById, edgesByKey, onPathComputed])
 
   const draw = () => {
     const canvas = canvasRef.current
@@ -461,6 +463,26 @@ export default function PathfindingMap({ onPathComputed }: PathfindingMapProps) 
     draw()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [image, nodes, edges, path, activeFloor, officerNode, threatNode])
+
+  // Auto-assign threat node from backend signals
+  useEffect(() => {
+    if (autoThreatNode?.id && autoThreatNode.id !== threatNode) {
+      setThreatNode(autoThreatNode.id)
+      if (officerNode) {
+        computePath(officerNode, autoThreatNode.id)
+      }
+    }
+  }, [autoThreatNode, threatNode, officerNode, computePath])
+
+  // External reset clears selections and path
+  useEffect(() => {
+    if (resetSignal === undefined) return
+    setThreatNode(null)
+    setOfficerNode(null)
+    setPath([])
+    setDistance(0)
+    setInstructions([])
+  }, [resetSignal])
 
   const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
