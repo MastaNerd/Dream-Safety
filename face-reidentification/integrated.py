@@ -668,7 +668,7 @@ async def main():
     FLOOR_PLAN_IMAGE = DEFAULT_FLOOR_PLAN
     GEXF_FILE = DEFAULT_GEXF
     
-    GUN_CONF_THRESHOLD = 0.75
+    GUN_CONF_THRESHOLD = 0.83
     WEBSOCKET_PORT = 8766
     
     detector = CombinedDetectorWithMap(
