@@ -582,7 +582,7 @@ export default function DreamSafetyDashboard() {
         {mapFullscreen && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="relative w-full h-full max-w-6xl max-h-[90vh] bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="absolute top-2 right-2 flex gap-2 z-10">
+              <div className="absolute bottom-3 right-3 flex gap-2 z-20">
                 <Button
                   size="sm"
                   variant="secondary"
@@ -690,6 +690,37 @@ export default function DreamSafetyDashboard() {
                 )}
               </div>
             </div>
+
+            <Card className="bg-white text-slate-800 border-slate-200 shadow-md">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Navigation className="h-4 w-4 text-emerald-600" />
+                  Navigation Instructions
+                  {pathDistance > 0 && (
+                    <Badge className="ml-auto bg-emerald-100 text-emerald-700 border-emerald-200">
+                      {pathDistance.toFixed(1)} units
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs max-h-56 overflow-y-auto">
+                {pathInstructions.length > 0 ? (
+                  pathInstructions.map((instruction, idx) => (
+                    <div
+                      key={idx}
+                      className="flex gap-2 items-start bg-slate-50 rounded-md px-2 py-1.5 border border-slate-200"
+                    >
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                        {idx + 1}
+                      </span>
+                      <span className="leading-snug">{instruction}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-slate-500">No active route. Select officer and threat to generate directions.</div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Center - Map and Active Threat Profile */}

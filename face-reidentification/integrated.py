@@ -17,6 +17,25 @@ import networkx as nx
 from models import SCRFD, ArcFace
 from utils.helpers import compute_similarity
 
+# Base paths for shared Pathfinding assets
+PATHFINDING_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "Pathfinding")
+)
+DEFAULT_FLOOR_PLAN = os.path.join(PATHFINDING_DIR, "BMHS_FloorPlan.JPG")
+DEFAULT_GEXF = os.path.join(PATHFINDING_DIR, "BMHS_FloorPlan_combined.gexf")
+
+# Camera names to node IDs in the GEXF; adjust if camera placement changes.
+CAMERA_TO_NODE: Dict[str, str] = {
+    # Lower-level Dining Commons area (floor 1 footprint)
+    "Cafeteria": "Floor1_Node_15",
+    # Level-one central hallway spine
+    "Hallway A": "Floor2_Node_5",
+    # Lower-level gymnasium courts
+    "Gym": "Floor1_Node_6",
+    # Level-two media center/library side
+    "Library": "Floor3_Node_10",
+}
+
 # --- Simple Map Display ---
 class SimpleMapService:
     def __init__(self, floor_plan_image):
@@ -132,6 +151,21 @@ class PathfindingService:
         _, buf = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 80])
         return base64.b64encode(buf).decode('utf-8')
 
+    def render_node_highlight_base64(self, node_id: str) -> Optional[str]:
+        """Render a single node highlight for quick map updates."""
+        if node_id not in self.pos:
+            return None
+        img = self.floor_plan.copy()
+        x, y = int(self.pos[node_id][0]), int(self.pos[node_id][1])
+        cv2.circle(img, (x, y), 18, (0, 0, 0), 6, lineType=cv2.LINE_AA)  # halo
+        cv2.circle(img, (x, y), 12, (0, 0, 255), -1, lineType=cv2.LINE_AA)  # red fill
+        cv2.circle(img, (x, y), 12, (255, 255, 255), 2, lineType=cv2.LINE_AA)  # outline
+        label = self.pretty_node_name(node_id)
+        cv2.putText(img, label, (x + 14, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (10, 10, 10), 2, cv2.LINE_AA)
+        cv2.putText(img, label, (x + 14, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
+        _, buf = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        return base64.b64encode(buf).decode('utf-8')
+
 
 # --- Detection Helper Functions ---
 def find_pose_for_face(face_bbox, pose_landmarks, frame_shape):
@@ -164,7 +198,8 @@ def is_gun_near_hand(gun_bbox, hand_landmark, frame_shape, proximity_thresh=100)
 # --- Combined Detector with Simple Map ---
 class CombinedDetectorWithMap:
     def __init__(self, det_weight, rec_weight, gun_weight, faces_dir, 
-                 gexf_file, floor_plan_image, similarity_thresh=0.4):
+                 gexf_file=None, floor_plan_image=None, similarity_thresh=0.4,
+                 camera_to_node: Optional[Dict[str, str]] = None):
         # Initialize detection models
         self.face_detector = SCRFD(det_weight)
         self.face_recognizer = ArcFace(rec_weight)
@@ -179,11 +214,13 @@ class CombinedDetectorWithMap:
         self.identified_threats = set()
         
         # Initialize map services (prefer shared Pathfinding assets one level up)
-        path_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Pathfinding"))
-        default_gexf = gexf_file or os.path.join(path_base, "BMHS_FloorPlan_combined.gexf")
-        default_plan = floor_plan_image or os.path.join(path_base, "BMHS_FloorPlan.JPG")
+        default_gexf = gexf_file or DEFAULT_GEXF
+        default_plan = floor_plan_image or DEFAULT_FLOOR_PLAN
         self.map_service = SimpleMapService(default_plan)
         self.path_service = PathfindingService(default_gexf, default_plan)
+        self.camera_to_node = camera_to_node or CAMERA_TO_NODE
+        self.camera_locations = ["Cafeteria", "Hallway A", "Gym", "Library"]
+        self.camera_index = 0
         
         # WebSocket clients
         self.websocket_clients = set()
@@ -214,6 +251,28 @@ class CombinedDetectorWithMap:
             except Exception as e:
                 print(f"Error processing {image_path}: {e}")
         print(f"Finished loading {len(self.known_face_names)} known faces.")
+
+    def camera_node_id(self, camera_name: str) -> Optional[str]:
+        """Return the mapped node id for a camera if present in the graph."""
+        node_id = self.camera_to_node.get(camera_name)
+        if node_id and self.path_service.G.has_node(node_id):
+            return node_id
+        return None
+
+    def current_camera(self) -> str:
+        if not self.camera_locations:
+            return "Unknown"
+        return self.camera_locations[self.camera_index % len(self.camera_locations)]
+
+    def switch_camera(self, direction: str = "next", target: Optional[str] = None) -> str:
+        """Cycle cameras or jump to a specific camera name."""
+        if target and target in self.camera_locations:
+            self.camera_index = self.camera_locations.index(target)
+        elif direction == "prev":
+            self.camera_index = (self.camera_index - 1) % len(self.camera_locations)
+        else:
+            self.camera_index = (self.camera_index + 1) % len(self.camera_locations)
+        return self.current_camera()
 
     def detect_and_recognize(self, frame, gun_conf_thresh=0.7):
         # --- Face Recognition ---
@@ -458,6 +517,11 @@ async def websocket_handler(websocket, detector):
                     
                 elif data.get("type") == "ping":
                     await websocket.send(json.dumps({"type": "pong"}))
+                elif data.get("type") == "switch_camera":
+                    direction = data.get("direction", "next")
+                    target = data.get("camera")
+                    new_cam = detector.switch_camera(direction=direction, target=target)
+                    await websocket.send(json.dumps({"type": "camera_switched", "camera": new_cam}))
                     
             except json.JSONDecodeError:
                 print(f"Invalid JSON received: {message}")
@@ -472,7 +536,7 @@ async def websocket_handler(websocket, detector):
 async def process_video_stream(detector, gun_conf_thresh=0.75):
     """Process video stream and send detection results via WebSocket."""
     
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
     print("\nStarting webcam feed with WebSocket server...")
     
     PROC_WIDTH = 640
@@ -504,15 +568,13 @@ async def process_video_stream(detector, gun_conf_thresh=0.75):
     
     face_detections, gun_detections, all_keypoints = [], [], None
     
-    # Camera location mapping (you can modify based on your setup)
-    camera_locations = ["Cafeteria", "Hallway A", "Gym", "Library"]
-    current_camera_index = 0
-    
     try:
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
+
+            frame = cv2.flip(frame, 0)
             
             orig_h, orig_w = frame.shape[:2]
             scale_w, scale_h = orig_w / PROC_WIDTH, orig_h / PROC_HEIGHT
@@ -525,7 +587,7 @@ async def process_video_stream(detector, gun_conf_thresh=0.75):
                 face_detections, gun_detections, all_keypoints = result_queue.get_nowait()
                 
                 # Get current camera location
-                current_location = camera_locations[current_camera_index % len(camera_locations)]
+                current_location = detector.current_camera()
                 
                 # Send detection data
                 detection_data = create_detection_payload(
@@ -536,6 +598,20 @@ async def process_video_stream(detector, gun_conf_thresh=0.75):
                 )
                 
                 await detector.broadcast_data(detection_data)
+
+                # Highlight the camera's node when a threat is present
+                if detection_data.get("threats"):
+                    node_id = detector.camera_node_id(current_location)
+                    if node_id:
+                        highlight_img = detector.path_service.render_node_highlight_base64(node_id)
+                        await detector.broadcast_data({
+                            "type": "camera_threat_highlight",
+                            "camera": current_location,
+                            "node_id": node_id,
+                            "floor": detector.path_service.floor_info.get(node_id, "Unknown"),
+                            "label": detector.path_service.pretty_node_name(node_id),
+                            "floor_plan": highlight_img  # optional: dashboard can ignore if it prefers client-side rendering
+                        })
                 
             except queue.Empty:
                 pass
@@ -570,8 +646,8 @@ async def process_video_stream(detector, gun_conf_thresh=0.75):
                 break
             elif key == ord('c'):
                 # Switch camera location (for testing)
-                current_camera_index += 1
-                print(f"Switched to camera: {camera_locations[current_camera_index % len(camera_locations)]}")
+                detector.switch_camera("next")
+                print(f"Switched to camera: {detector.current_camera()}")
             
             await asyncio.sleep(0.1)
             
@@ -589,8 +665,8 @@ async def main():
     FACES_DIR = "./faces"
     
     # Floor plan configuration
-    FLOOR_PLAN_IMAGE = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan.JPG"
-    GEXF_FILE = "/Users/vibhushsivakumar/Desktop/DreamSafety/Pathfinding/BMHS_FloorPlan_combined.gexf"
+    FLOOR_PLAN_IMAGE = DEFAULT_FLOOR_PLAN
+    GEXF_FILE = DEFAULT_GEXF
     
     GUN_CONF_THRESHOLD = 0.75
     WEBSOCKET_PORT = 8766
@@ -601,7 +677,8 @@ async def main():
         gun_weight=GUN_WEIGHT,
         faces_dir=FACES_DIR,
         gexf_file=GEXF_FILE,
-        floor_plan_image=FLOOR_PLAN_IMAGE
+        floor_plan_image=FLOOR_PLAN_IMAGE,
+        camera_to_node=CAMERA_TO_NODE
     )
     
     # Start WebSocket server
