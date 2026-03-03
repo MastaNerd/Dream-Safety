@@ -13,6 +13,24 @@ from datetime import datetime
 import base64
 from typing import Dict, List, Tuple, Optional
 import networkx as nx
+import torch
+from ultralytics.nn.tasks import DetectionModel
+from torch.nn.modules.container import Sequential
+from ultralytics.nn.modules.conv import Conv
+from torch.nn.modules.conv import Conv2d
+
+torch.serialization.add_safe_globals([DetectionModel, Sequential, Conv, Conv2d])
+
+# For PyTorch 2.6+: ensure older Ultralytics checkpoints load by default.
+_original_torch_load = torch.load
+
+
+def _torch_load_unsafe_weights(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _original_torch_load(*args, **kwargs)
+
+
+torch.load = _torch_load_unsafe_weights
 
 from models import SCRFD, ArcFace
 from utils.helpers import compute_similarity
@@ -204,9 +222,17 @@ class CombinedDetectorWithMap:
         self.face_detector = SCRFD(det_weight)
         self.face_recognizer = ArcFace(rec_weight)
         self.gun_detector = YOLO(gun_weight)
-        self.mp_pose = mp.solutions.pose.Pose(
-            min_detection_confidence=0.5, min_tracking_confidence=0.5
-        )
+        # Initialize pose estimator (optional depending on MediaPipe version)
+        try:
+            self.mp_pose = mp.solutions.pose.Pose(
+                min_detection_confidence=0.5, min_tracking_confidence=0.5
+            )
+        except AttributeError:
+            print(
+                "Warning: mediapipe legacy solutions API not available; "
+                "pose-based gun/hand association will be disabled."
+            )
+            self.mp_pose = None
         
         self.similarity_thresh = similarity_thresh
         self.known_face_embs = []
@@ -304,19 +330,22 @@ class CombinedDetectorWithMap:
             label = f'{self.gun_detector.model.names[int(box.cls[0])]} {box.conf[0]:.2f}'
             gun_detections.append((xyxy, label))
 
-        # --- Pose Estimation ---
-        frame.flags.writeable = False
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        pose_results = self.mp_pose.process(frame_rgb)
-        frame.flags.writeable = True
-        all_keypoints = pose_results.pose_landmarks
+        # --- Pose Estimation (if available) ---
+        pose_results = None
+        all_keypoints = None
+        if self.mp_pose is not None:
+            frame.flags.writeable = False
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pose_results = self.mp_pose.process(frame_rgb)
+            frame.flags.writeable = True
+            all_keypoints = pose_results.pose_landmarks
 
         # --- Threat Association Logic ---
         final_face_detections = []
         for face_bbox, label in face_detections:
             person_name = label.split(' (')[0]
 
-            if person_name != "Unknown":
+            if person_name != "Unknown" and pose_results is not None and pose_results.pose_landmarks:
                 person_pose = find_pose_for_face(face_bbox, pose_results.pose_landmarks, frame.shape)
                 if person_pose:
                     lwrist = person_pose.landmark[mp.solutions.pose.PoseLandmark.LEFT_WRIST]
@@ -574,7 +603,7 @@ async def process_video_stream(detector, gun_conf_thresh=0.75):
             if not ret:
                 break
 
-            frame = cv2.flip(frame, 0)
+            #frame = cv2.flip(frame, 0)
             
             orig_h, orig_w = frame.shape[:2]
             scale_w, scale_h = orig_w / PROC_WIDTH, orig_h / PROC_HEIGHT
